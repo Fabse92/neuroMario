@@ -8,21 +8,20 @@ class NEATagent(MarioAgent):
     """ In fact the Python twin of the
         corresponding Java ForwardJumpingAgent.
     """
-    action = [0, 0, 0, 0, 0, 0]
+    action = [0, 0, 0, 0, 0]
     actionStr = None
     KEY_LEFT = 0
     KEY_RIGHT = 1
     KEY_DUCK = 2
     KEY_JUMP = 3
     KEY_SPEED = 4
-    #levelScene = None
     mayMarioJump = None
     isMarioOnGround = None
     marioFloats = None
     enemiesFloats = None
     isEpisodeOver = False
     marioState = None       
-    groups = None      
+    groups = None
     env = []
     collectedCoins = 0
     newCoins = 0
@@ -36,7 +35,7 @@ class NEATagent(MarioAgent):
         return self.agentName
 
     def reset(self):
-        self.action = [0, 0, 0, 0, 0, 0]
+        self.action = [0, 0, 0, 0, 0]
         self.isEpisodeOver = False
         self.collectedCoins = 0
         
@@ -50,15 +49,16 @@ class NEATagent(MarioAgent):
       """ Possible analysis of current observation and sending an action back
       """
       if (self.isEpisodeOver):
-        return (1, 1, 1, 1, 1, 1)
+        return (1, 1, 1, 1, 1)
       NEATinput = [1] + [self.marioState] + self.env
         
       NEATinput = tuple(NEATinput)
+      # the given network is activated with the current inputs
       output = network.activate(NEATinput)
       
-      #if vis:
-      #  print "Input: " + str(NEATinput)        
-      #  print "output: "+ str(output)        
+      if vis:
+        print "Input: " + str(NEATinput)        
+        print "output: "+ str(output)        
         
       if output[self.KEY_LEFT] > output[self.KEY_RIGHT] + 0.1:
       # go left
@@ -110,7 +110,7 @@ class NEATagent(MarioAgent):
       for i in range(len(self.groups)):
         for cell in self.groups[i]:
           if squashedEnemies[cell] > 5:
-            self.env[i] = -1 
+            self.env[i] = -1 # enemies
 
       self.newCoins = evaluationInfo[10] - self.collectedCoins
       self.collectedCoins += self.newCoins

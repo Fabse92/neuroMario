@@ -80,6 +80,8 @@ class MarioNet():
     #  groups = [[0, 1, 2, 3, 11, 12, 13, 14, 22, 23, 33, 34], [24, 25, 35, 36], [4, 5, 6, 15, 16, 17], [26, 37], [27, 38], [28, 39], [7, 8, 9, 10, 18, 19, 20, 21, 31, 32, 42, 43], [29, 30, 40, 41], [44, 45, 55, 56], [46, 47, 57, 58], [48, 59], [50, 61], [51, 52, 62, 63], [53, 54, 64, 65], [66, 67, 77, 78, 88, 89, 99, 100, 110, 111], [68, 69, 79, 80, 81, 90, 91, 92], [70], [101, 102, 103, 112, 113, 114], [72], [73, 74, 83, 84, 85, 94, 95, 96], [105, 106, 107, 116, 117, 118], [75, 76, 86, 87, 97, 98, 108, 109, 119, 120]]
     
     groups = []
+    # groups can be used to integrate the input of multiple grid cells
+    # default is that one group per grid cell is generated
     for i in range(121):
       groups.append([i])    
     
@@ -93,21 +95,27 @@ class MarioNet():
     self.agent.setGroups(groups)
     self.round = 0
     self.iteration = 0
-    self.ll = 180
-    self.options = "-z on -tl 60 -rfh 11 -rfw 11 -ll " + str(self.ll)
+    # length of the level
+    self.ll = 170
+    # -tl - time for a level
+    # -rfh - receptive field height
+    # -rfw - receptive field width
+    self.options = "-tl 60 -rfh 11 -rfw 11 -ll " + str(self.ll)
     
   def initNeat(self, population):
     # Create the population, which is the top-level object for a NEAT run.
     if population is None:
       if feedforward:
-        configFile = 'config-feedforward'
+        configFile = 'neuroMario/config-feedforward'
       else:
-        configFile = 'config-recurrent'
+        configFile = 'neuroMario/config-recurrent'
       self.config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                        neat.DefaultSpeciesSet, neat.DefaultStagnation,
                        configFile)
+      # generate a new population
       self.pop = neat.Population(self.config)
       self.stats = statisticsPlus.StatisticsReporter()
+      # keep track of the best network seen so far
       self.best_genome = None
     else:      
       self.pop, self.stats = checkpointPlus.CheckpointerPlus.restore_checkpoint(population)
@@ -157,7 +165,57 @@ class MarioNet():
     self.getEvaluationInfo = cfunc('getEvaluationInfo', libamico, py_object)
     self.getObservationDetails = cfunc('getObservationDetails', libamico, py_object)
 
-  def visualizeBestGenome(self):
+  def evaluateBestGenome(self):
+  # function to perform evaluation on the best network seen so far
+    if self.feedforward:
+      network = neat.nn.FeedForwardNetwork.create(self.best_genome, self.config)
+    else:
+      network = neat.nn.RecurrentNetwork.create(self.best_genome, self.config)
+    runs = range(1000)
+    fitness = 0.0
+    self.completedAllLevels = 0
+    for run in runs:
+      lastObs1 = None
+      lastObs2 = None
+      stagnancyCount = 0      
+      options = self.options + " -vis off -gv off -ls " + str(run+0)
+      #print options
+      self.reset(options)
+      obsDetails = self.getObservationDetails()
+      while (not self.libamico.isLevelFinished()):
+        self.libamico.tick();
+        obs = self.getEntireObservation(1, 0)
+        self.agent.integrateObservation(obs[0], obs[1], obs[2], obs[3], obs[4], self.getEvaluationInfo());
+        action = self.agent.getAction(network, False)
+        self.performAction(action);
+        if obs[2] == lastObs1 or obs[2] == lastObs2:
+          stagnancyCount += 1
+          if stagnancyCount >= 200:
+            break
+        else:
+          stagnancyCount = 0
+        lastObs2 = lastObs1
+        lastObs1 = obs[2]        
+      self.agent.reset()
+      reachedLength = obs[2][0]    
+      maxLength = 16.0 * self.ll
+      reachedPercentage = reachedLength/maxLength
+      completedLevel = 0.0
+      if reachedPercentage == 1.0:
+        completedLevel = 1.0
+      #print self.agent.collectedCoins
+      fitness += self.getEvaluationInfo()[10] * 0.02 + reachedPercentage + completedLevel
+      #fitness += reachedPercentage + completedLevel
+      self.completedAllLevels += completedLevel
+    fitness = fitness / len(runs)
+    #self.completedAllLevels = self.completedAllLevels / len(runs)
+    print "Mean fitness: " + str(fitness)
+    print "Completed levels: " + str(self.completedAllLevels)
+    print "Percentage completed: " + str(self.completedAllLevels / len(runs))
+    self.completedAllLevels = self.completedAllLevels / len(runs)
+
+  def visualizeBestGenome(self, fps = 24):
+  # the best network so far is visualized
     if self.feedforward:
       network = neat.nn.FeedForwardNetwork.create(self.best_genome, self.config)
     else:
@@ -166,7 +224,7 @@ class MarioNet():
       lastObs1 = None
       lastObs2 = None
       stagnancyCount = 0
-      options = self.options + " -vis on -gv off -fps 24 -ls " + str(level) 
+      options = self.options + " -vis on -gv off -fps "+ str(fps) +" -ewf on -ls " + str(level) 
       print "Running visualition with options: " + options
       self.reset(options)
       obsDetails = self.getObservationDetails()
@@ -189,6 +247,7 @@ class MarioNet():
       #print self.agent.collectedCoins
 
   def eval_genome(self, genome, config):
+  # function to evaluate one genome/network
     newBestFitness = False
     if self.feedforward:
       network = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -226,7 +285,8 @@ class MarioNet():
       if reachedPercentage == 1.0:
         completedLevel = 1.0
       #print self.agent.collectedCoins
-      fitness += self.getEvaluationInfo()[10] * 0.02 + reachedPercentage + completedLevel
+      #fitness += self.getEvaluationInfo()[10] * 0.02 + reachedPercentage + completedLevel
+      fitness += reachedPercentage + completedLevel
       self.completedAllLevels += completedLevel
     fitness = fitness / len(self.levels)
     self.completedAllLevels = self.completedAllLevels / len(self.levels)
@@ -241,14 +301,14 @@ class MarioNet():
         self.visualizeBestGenome()
     return newBestFitness
       
-  def eval_genomes(self, genomes, config):    
+  def eval_genomes(self, genomes, config): 
+  # function to evaluate a set of genomes/networks   
     agentsAbleToReachEnd = 0.0
     agentsNotAbleToReachEnd = 0.0
     newBestFitness = False
     if self.randomLevels:
-      self.levels = []
-      for i in range(len(levels)):
-        self.levels.append(random.randint(0,100000000)) 
+      for i in range(len(self.levels)):
+        self.levels[i] = random.randint(0,100000000) 
     for genome_id, genome in genomes:
       if self.eval_genome(genome, config):
         newBestFitness = True
@@ -264,32 +324,76 @@ class MarioNet():
     #print "agentsNotAbleToReachEnd: " + str(agentsNotAbleToReachEnd) 
     #print "agentsAbleToReachEnd: " +str(agentsAbleToReachEnd)
     print "perecentageOfSuccessfulAgents: " + str(self.perecentageOfSuccessfulAgents)
-    
+    print "currently in round: " + str(self.round) + ", iteration: " + str(self.iteration)
 
 if __name__ == "__main__":
   #groups = [[0,1,7,8],[2,3,4,9,10,11],[5,6,12,13],[14,15,21,22],[16,23],[18,25],[19,20,26,27],[28,29,35,36,37,42,43,44],[30],[32],[33,34,39,40,41,46,47,48]]  
   
   feedforward = False
-  threshold = 0.1
+  threshold = 0.0
   startRound = 0
   
   population = None
-  #population = 'neuroMario/checkpoints/checkpoint_0_2.0'  
+  # provide path to a saved population to continue using it
+  population = 'neuroMario/checkpoints/checkpoint_1_1_[59648522]_2.0' 
   
   experiment = MarioNet(population, feedforward)  
     
-  #experiment.eval_genome(experiment.best_genome, experiment.config)
-  #experiment.visualizeBestGenome()
+  experiment.levels = [59648522]
+  #for i in range(5):
+  #  experiment.levels.append(random.randint(10,50000000))
+  experiment.randomLevels = False
+  experiment.options = experiment.options + " -ld " + str(1)
+  experiment.eval_genome(experiment.best_genome, experiment.config)
+  experiment.visualizeBestGenome()
+  experiment.visualizeBestGenome(12)
+  experiment.levels = [3]
+  experiment.visualizeBestGenome()
+  
+  # the following is used to define the experiment
+  # each list entry defines the parameter for one experiment iteration
+  
+  # levels: number of levels used for the evaluation
+  # difficulty: difficulty of the levels
+  # randomLevels: are the level seed randomized for each generation?
+  # vis:      are intermediate steps visualized?
+  
+  #experiment.evaluateBestGenome()
+  #print "evaluated!!!"
+  # dritter
+  #levels =       [5, 7, 10]
+  #difficulty =   [1, 1, 1 ]
+  #randomLevels = [1, 1, 1 ]
+  #vis =          [0, 0, 0 ]
 
-  levels =       [1, 3, 5, 7, 3, 5, 7]
-  difficulty =   [0, 1, 1, 1, 1, 1, 1]
-  randomLevels = [0, 0, 0, 0, 1, 1, 1]
-  vis =          [0, 0, 0, 0, 0, 0, 0] 
+  # zweiter
+  #levels =       [5, 7, 10, 20]
+  #difficulty =   [0, 0, 0 ,  0]
+  #randomLevels = [1, 1, 1 ,  1]
+  #vis =          [0, 0, 0 ,  0]
+  
+  #erster
+  #levels =       [1, 3, 3, 4, 5, 10, 3, 5, 7, 10]
+  #difficulty =   [0, 0, 0, 0, 0, 0,  1, 1, 1, 1 ]
+  #randomLevels = [0, 0, 1, 1, 1, 1,  1, 1, 1, 1 ]
+  #vis =          [0, 0, 0, 0, 0, 0,  0, 0, 0, 0 ] 
 
-  for i in range(len(levels)):
+  # single
+  levels =       [1,1,1,1,1,1,1,1]
+  difficulty =   [1,1,1,1,1,1,1,1]
+  randomLevels = [0,0,0,0,0,0,0,0]
+  vis =          [0,0,0,0,0,0,0,0]
+
+
+  for i in range(len(levels)): 
     experiment.iteration = 0
+    #if i == 3:
+    #  experiment.iteration = 41
+    experiment.perecentageOfSuccessfulAgents = 0.0
     if startRound <= i:
-      while experiment.perecentageOfSuccessfulAgents < threshold:
+      # as long as less than a fraction threshold of the population
+      # solves the level, the experiment continues  
+      while experiment.perecentageOfSuccessfulAgents == threshold:
         experiment.iteration += 1
         experiment.round = i
         experiment.options = experiment.options + " -ld " + str(difficulty[i])
@@ -299,27 +403,21 @@ if __name__ == "__main__":
         experiment.randomLevels = (randomLevels[i] == 1)    
         experiment.vis = (vis[i] == 1)  
         counter = 0
-        while experiment.perecentageOfSuccessfulAgents == 0.0 and counter < 1000:
+        # 100 generations a performed as long as no agent reached the 
+        # end of the all evaluated levels
+        while experiment.perecentageOfSuccessfulAgents == 0.0 and counter < 100:
           winner = experiment.pop.run(experiment.eval_genomes, 1)
           counter += 1
-        winner = experiment.pop.run(experiment.eval_genomes, 100)
+        # an additional 30 generations are performed
+        winner = experiment.pop.run(experiment.eval_genomes, 30)
         experiment.bestFitness = 0
       
+        # statistics and the current population are saved
         fileName = '_'+str(experiment.round)+'_'+str(experiment.iteration)+'_'+str(experiment.levels)+'_'+str(experiment.bestFitness)
         visualize.plot_stats(experiment.stats, ylog=False, view=False, filename='neuroMario/stats/stats'+fileName+'.png')
         visualize.plot_species(experiment.stats, view=False, filename='neuroMario/stats/species'+fileName+'.png')
   
   print "All done!"
   
-
-
-
-
-
-
-
-
-
-
 
 
