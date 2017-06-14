@@ -8,4 +8,4 @@ To use the framework:
    so you are able to use $python DemoForwardJumpingAgent.py
 3. Clone this repo into MarioAI/bin/AmiCoBuild/PyJava/
 4. Adapt the main function in 'DemoNEATagent.py' for your experiments
-5. Run $python DemoNEATagent.py
+5. Run $python DemoNEATagent.py from the path MarioAI/bin/AmiCoBuild/PyJava/
