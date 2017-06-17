@@ -330,25 +330,25 @@ if __name__ == "__main__":
   #groups = [[0,1,7,8],[2,3,4,9,10,11],[5,6,12,13],[14,15,21,22],[16,23],[18,25],[19,20,26,27],[28,29,35,36,37,42,43,44],[30],[32],[33,34,39,40,41,46,47,48]]  
   
   feedforward = False
-  threshold = 0.0
+  threshold = 0.1
   startRound = 0
   
   population = None
   # provide path to a saved population to continue using it
-  population = 'neuroMario/checkpoints/checkpoint_1_1_[59648522]_2.0' 
+  #population = 'neuroMario/checkpoints/checkpoint_1_1_[59648522]_2.0' 
   
   experiment = MarioNet(population, feedforward)  
     
-  experiment.levels = [59648522]
+  #experiment.levels = [59648522]
   #for i in range(5):
   #  experiment.levels.append(random.randint(10,50000000))
-  experiment.randomLevels = False
-  experiment.options = experiment.options + " -ld " + str(1)
-  experiment.eval_genome(experiment.best_genome, experiment.config)
-  experiment.visualizeBestGenome()
-  experiment.visualizeBestGenome(12)
-  experiment.levels = [3]
-  experiment.visualizeBestGenome()
+  #experiment.randomLevels = False
+  #experiment.options = experiment.options + " -ld " + str(1)
+  #experiment.eval_genome(experiment.best_genome, experiment.config)
+  #experiment.visualizeBestGenome()
+  #experiment.visualizeBestGenome(12)
+  #experiment.levels = [3]
+  #experiment.visualizeBestGenome()
   
   # the following is used to define the experiment
   # each list entry defines the parameter for one experiment iteration
@@ -358,42 +358,32 @@ if __name__ == "__main__":
   # randomLevels: are the level seed randomized for each generation?
   # vis:      are intermediate steps visualized?
   
-  #experiment.evaluateBestGenome()
-  #print "evaluated!!!"
-  # dritter
+  # difficulty 0
+  levels =       [5, 7, 10, 20]
+  difficulty =   [0, 0, 0 ,  0]
+  randomLevels = [1, 1, 1 ,  1]
+  vis =          [0, 0, 0 ,  0]
+  
+  # difficulty 1
   #levels =       [5, 7, 10]
   #difficulty =   [1, 1, 1 ]
   #randomLevels = [1, 1, 1 ]
   #vis =          [0, 0, 0 ]
 
-  # zweiter
-  #levels =       [5, 7, 10, 20]
-  #difficulty =   [0, 0, 0 ,  0]
-  #randomLevels = [1, 1, 1 ,  1]
-  #vis =          [0, 0, 0 ,  0]
-  
-  #erster
-  #levels =       [1, 3, 3, 4, 5, 10, 3, 5, 7, 10]
-  #difficulty =   [0, 0, 0, 0, 0, 0,  1, 1, 1, 1 ]
-  #randomLevels = [0, 0, 1, 1, 1, 1,  1, 1, 1, 1 ]
-  #vis =          [0, 0, 0, 0, 0, 0,  0, 0, 0, 0 ] 
-
   # single
-  levels =       [1,1,1,1,1,1,1,1]
-  difficulty =   [1,1,1,1,1,1,1,1]
-  randomLevels = [0,0,0,0,0,0,0,0]
-  vis =          [0,0,0,0,0,0,0,0]
+  #levels =       [1,1,1,1,1,1,1,1]
+  #difficulty =   [1,1,1,1,1,1,1,1]
+  #randomLevels = [0,0,0,0,0,0,0,0]
+  #vis =          [0,0,0,0,0,0,0,0]
 
 
   for i in range(len(levels)): 
     experiment.iteration = 0
-    #if i == 3:
-    #  experiment.iteration = 41
     experiment.perecentageOfSuccessfulAgents = 0.0
     if startRound <= i:
       # as long as less than a fraction threshold of the population
       # solves the level, the experiment continues  
-      while experiment.perecentageOfSuccessfulAgents == threshold:
+      while experiment.perecentageOfSuccessfulAgents < threshold:
         experiment.iteration += 1
         experiment.round = i
         experiment.options = experiment.options + " -ld " + str(difficulty[i])
